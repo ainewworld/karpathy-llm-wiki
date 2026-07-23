@@ -38,11 +38,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-NUMBER_TOKEN_RE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)*\s*[KMB%]?|\d+(?:\.\d+)*\s*[KMB%]?")
+NUMBER_TOKEN_RE = re.compile(
+    r"(?:\d{1,3}(?:,\d{3})+(?:\.\d+)*(?:\s*[KMB%](?![A-Za-z]))?"
+    r"|\d+(?:\.\d+)*(?:\s*[KMB%](?![A-Za-z]))?)(?![A-Za-z])"
+)
 SUFFIX_RE = re.compile(r"[KMB%]$")
 DATE_RE = re.compile(r"\d{4}-\d{2}(?:-\d{2})?")
 QUOTE_RES = [re.compile(r'"([^"\n]*)"'), re.compile(r"“([^”\n]*)”")]
-SPACED_SUFFIX_RE = re.compile(r"\s+([KMB%])$")
 METADATA_RE = re.compile(r"^>\s*(Sources?|Raw|Collected|Published|Updated|Archived):")
 STATUS_LINE_RE = re.compile(r"^>\s*\*\*Status:")
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
@@ -64,6 +66,12 @@ class Document:
     title: str | None
     header: tuple[str, ...]
     body: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Candidate:
+    kind: str
+    value: str
 
 
 def normalize(text: str) -> str:
@@ -169,28 +177,54 @@ def keep_number(token: str) -> bool:
     return len(token) >= 4
 
 
-def extract_candidates(text: str) -> list[tuple[str, bool]]:
-    """Return (candidate, is_quote) pairs. Quote candidates are checked
-    as substrings; everything else uses boundary matching."""
+def extract_numeric_date_candidates(line: str) -> list[Candidate]:
+    line = strip_noise(line)
+    date_matches = list(DATE_RE.finditer(line))
+    candidates = [Candidate("date", m.group(0)) for m in date_matches]
+    number_text = list(line)
+    for match in date_matches:
+        number_text[match.start() : match.end()] = " " * (match.end() - match.start())
+    candidates.extend(
+        Candidate("number", m.group(0))
+        for m in NUMBER_TOKEN_RE.finditer("".join(number_text))
+        if keep_number(m.group(0))
+    )
+    return candidates
+
+
+def extract_candidates(text: str) -> list[Candidate]:
     document = parse_document(text)
     lines = ([document.title] if document.title else []) + [
         line for line in document.header if not METADATA_RE.match(line.strip())
     ] + list(document.body)
-    candidates: list[tuple[str, bool]] = []
+    candidates: list[Candidate] = []
     skip_status_block = False
     blockquote: list[str] = []
+    paragraph: list[str] = []
 
     def flush_blockquote():
         if blockquote:
             joined = normalize(" ".join(blockquote))
             if len(joined) >= 15:
-                candidates.append((joined, True))
+                candidates.append(Candidate("quote", joined))
             blockquote.clear()
+
+    def flush_paragraph():
+        if paragraph:
+            joined = normalize(" ".join(paragraph))
+            for quote_re in QUOTE_RES:
+                candidates.extend(
+                    Candidate("quote", m.group(1))
+                    for m in quote_re.finditer(joined)
+                    if len(m.group(1).strip()) >= 15
+                )
+            paragraph.clear()
 
     for line in lines:
         stripped = line.strip()
         if STATUS_LINE_RE.match(stripped):
             flush_blockquote()
+            flush_paragraph()
             skip_status_block = True
             continue
         if skip_status_block:
@@ -198,26 +232,28 @@ def extract_candidates(text: str) -> list[tuple[str, bool]]:
                 continue
             skip_status_block = False
         if stripped.startswith(">"):
-            blockquote.append(stripped.lstrip(">").strip())
+            flush_paragraph()
+            content = strip_noise(stripped.lstrip(">").strip())
+            blockquote.append(content)
+            candidates.extend(extract_numeric_date_candidates(content))
             continue
         flush_blockquote()
+        if not stripped:
+            flush_paragraph()
+            continue
         line = strip_noise(line)
-        candidates.extend((m.group(0), False) for m in DATE_RE.finditer(line))
-        candidates.extend(
-            (m.group(0), False) for m in NUMBER_TOKEN_RE.finditer(line) if keep_number(m.group(0))
-        )
-        for quote_re in QUOTE_RES:
-            candidates.extend(
-                (m.group(1), True) for m in quote_re.finditer(line) if len(m.group(1).strip()) >= 15
-            )
+        candidates.extend(extract_numeric_date_candidates(line))
+        paragraph.append(line)
     flush_blockquote()
+    flush_paragraph()
     seen = set()
     unique = []
-    for cand, is_quote in candidates:
-        cand = SPACED_SUFFIX_RE.sub(r"\1", cand.strip().strip(".,;:()[]"))
-        if cand and (cand, is_quote) not in seen:
-            seen.add((cand, is_quote))
-            unique.append((cand, is_quote))
+    for candidate in candidates:
+        value = candidate.value.strip().strip(".,;:()[]")
+        candidate = Candidate(candidate.kind, value)
+        if value and candidate not in seen:
+            seen.add(candidate)
+            unique.append(candidate)
     return unique
 
 
@@ -231,13 +267,15 @@ def raw_links_of(article_text: str) -> list[str]:
     return links
 
 
-def contains(haystack: str, needle: str, is_quote: bool) -> bool:
-    if is_quote:
-        return needle in haystack
-    # The value must stand on its own: not part of a longer number
-    # (142K must not pass for 42K), but sentence-final punctuation
-    # after it is fine (raw "hit 42K." must pass for 42K).
-    pattern = r"(?<![\d.,])" + re.escape(needle) + r"(?!\d|[.,]\d|[KMB%])"
+def contains(haystack: str, candidate: Candidate) -> bool:
+    if candidate.kind == "quote":
+        return candidate.value in haystack
+    # Values must stand on their own, while sentence punctuation remains
+    # valid. A month may not pass as the prefix of a full ISO date.
+    right = r"(?!-\d{2})" if candidate.kind == "date" and len(candidate.value) == 7 else ""
+    pattern = (
+        r"(?<![\d.,])" + re.escape(candidate.value) + right + r"(?![A-Za-z0-9]|[.,]\d|%)"
+    )
     return re.search(pattern, haystack) is not None
 
 
@@ -270,10 +308,10 @@ def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
             raws.append(source_content(target))
     misses = []
     if raws:
-        for cand, is_quote in extract_candidates(text):
-            needle = normalize(cand)
-            if not any(contains(raw, needle, is_quote) for raw in raws):
-                misses.append(cand)
+        for candidate in extract_candidates(text):
+            candidate = Candidate(candidate.kind, normalize(candidate.value))
+            if not any(contains(raw, candidate) for raw in raws):
+                misses.append(candidate.value)
     return misses, errors
 
 

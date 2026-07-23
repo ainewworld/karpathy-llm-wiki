@@ -257,6 +257,31 @@ class BoundaryMatchingTest(WikiTestCase):
         self.assertIn("3,020", result.stdout)
 
 
+class DateBoundaryTest(WikiTestCase):
+    def test_missing_date_does_not_also_report_its_year(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "Released on 2031-09-12.",
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("- 2031-09-12", result.stdout)
+        self.assertNotIn("- 2031\n", result.stdout)
+
+    def test_month_does_not_match_prefix_of_full_date(self):
+        raw = PLAIN_RAW.replace(
+            "No numeric facts here at all.",
+            "Released on 2026-03-19.",
+        )
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "Released in 2026-03.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("- 2026-03", result.stdout)
+
+
 class NumberCoverageTest(WikiTestCase):
     def setUp(self):
         super().setUp()
@@ -527,6 +552,15 @@ class DocumentStructureTest(WikiTestCase):
 
 
 class QuotePairingTest(WikiTestCase):
+    def test_multiline_quote_is_checked_within_paragraph(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            'The maintainer said "the terminal should\nfeel invisible to users".\n',
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("the terminal should feel invisible to users", result.stdout)
+
     def test_short_quote_pairs_do_not_create_phantom_quote(self):
         raw = PLAIN_RAW.replace(
             "No numeric facts here at all.",
@@ -556,6 +590,28 @@ class NestedIndexLogTest(WikiTestCase):
 
 
 class BlockquoteQuoteTest(WikiTestCase):
+    def test_short_blockquote_number_is_checked(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "> 999K users\n",
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("- 999K", result.stdout)
+
+    def test_blockquote_link_target_is_not_part_of_quote(self):
+        raw = PLAIN_RAW.replace(
+            "No numeric facts here at all.",
+            "The terminal should feel invisible to users.",
+        )
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "> The [terminal](https://example.com) should feel invisible to users.\n",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
     def test_fabricated_blockquote_quote_is_flagged(self):
         article = PLAIN_ARTICLE.replace(
             "There were 42 users; the ratio was 3.14; founded in 2026.",
@@ -600,7 +656,40 @@ class BacktickNoMaterialTest(WikiTestCase):
 
 
 class SpacedSuffixTest(WikiTestCase):
-    def test_spaced_percent_matches_unspaced_raw(self):
+    def test_word_after_number_is_not_a_suffix(self):
+        raw = PLAIN_RAW.replace(
+            "No numeric facts here at all.",
+            "The product reached 10 Million users and used 42 Kilobytes.",
+        )
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "The product reached 10 Million users and used 42 Kilobytes.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
+    def test_same_spaced_suffix_in_article_and_raw_passes(self):
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "Uptime hit 99.9 % last week.")
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "Uptime hit 99.9 % last week.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
+    def test_suffix_does_not_match_prefix_of_word(self):
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "The package weighs 42Kg.")
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "The package weighs 42K.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("- 42K", result.stdout)
+
+    def test_spaced_suffix_does_not_match_different_raw_spelling(self):
         raw = PLAIN_RAW.replace("No numeric facts here at all.", "Uptime hit 99.9% last week.")
         article = PLAIN_ARTICLE.replace(
             "There were 42 users; the ratio was 3.14; founded in 2026.",
@@ -608,7 +697,7 @@ class SpacedSuffixTest(WikiTestCase):
         )
         plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
         result = run_checker(self.root)
-        self.assertNotIn("99.9", result.stdout)
+        self.assertIn("- 99.9 %", result.stdout)
 
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
