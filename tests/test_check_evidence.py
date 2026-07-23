@@ -40,13 +40,91 @@ example 78K and 9,999
 > The forks situation changed after this was written.
 """
 
-SECOND_RAW = """# Unrelated Notes
+SENTENCE_FINAL_RAW = """# Numbers
 
-> Source: https://example.com/notes
-> Collected: 2026-05-01
+> Source: https://example.com/numbers
+> Collected: 2026-06-01
 > Published: Unknown
 
-Nothing here is compiled anywhere.
+Revenue hit 42K. Uptime was 99.9%. The round closed on 2026-06-15.
+"""
+
+SENTENCE_FINAL_ARTICLE = """# Sentence final
+
+> Sources: Example, 2026-06-01
+> Raw: [numbers](../../raw/t/numbers.md)
+
+Revenue hit 42K and uptime was 99.9%. The round closed on 2026-06-15.
+"""
+
+STATUS_EXPLANATION_ARTICLE = """# Status article
+
+> Sources: Example, 2026-04-16
+> Raw: [ghostty](../../raw/ai-research/2026-04-17-ghostty.md)
+
+Ghostty has 42K stars.
+
+> **Status: Outdated** (2026-07-23)
+> Superseded by the 2026-07-18 report, which restated the count as 55K.
+"""
+
+FENCE_VARIANTS_ARTICLE = """# Fences
+
+> Sources: Example, 2026-04-16
+> Raw: [ghostty](../../raw/ai-research/2026-04-17-ghostty.md)
+
+~~~text
+not a factual claim: 777K
+~~~
+
+````text
+also not a claim: 888K
+````
+"""
+
+BODY_ARCHIVED_ARTICLE = """# Ordinary article
+
+> Sources: Example, 2026-01-01
+
+Some paragraph first.
+
+> Archived: 2025-01-01
+
+The release reached 321K users.
+"""
+
+RAW_WITH_BODY_METADATA_LINE = """# Source
+
+> Source: https://example.com/x
+> Collected: 2026-06-01
+> Published: Unknown
+
+First paragraph.
+> Updated: The release reached 999K users.
+"""
+
+BODY_METADATA_ARTICLE = """# Body metadata
+
+> Sources: Example, 2026-06-01
+> Raw: [src](../../raw/t/src.md)
+
+The release reached 999K users.
+"""
+
+ESCAPE_ARTICLE = """# Escape
+
+> Sources: Example, 2026-01-01
+> Raw: [support](../../notes/support.md)
+
+The release reached 654K users.
+"""
+
+DEDUP_ARTICLE = """# Dedup
+
+> Sources: Example, 2026-04-16
+> Raw: [ghostty](../../raw/ai-research/2026-04-17-ghostty.md)
+
+Missing value 88,123 appears here and again as 88,123 elsewhere.
 """
 
 BOUNDARY_RAW = """# Numbers
@@ -133,7 +211,7 @@ class WikiTestCase(unittest.TestCase):
         self.root = Path(self.tmp.name)
 
     def tearDown(self):
-        self.tmp.cleanup
+        self.tmp.cleanup()
 
 
 class FidelityCheckTest(WikiTestCase):
@@ -240,6 +318,107 @@ class CliTest(WikiTestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("wiki/nope.md", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+
+SECOND_RAW = """# Unrelated Notes
+
+> Source: https://example.com/notes
+> Collected: 2026-05-01
+> Published: Unknown
+
+Nothing here is compiled anywhere.
+"""
+
+
+def plain_wiki(root: Path, article_name: str, article: str, raw: str = PLAIN_RAW):
+    (root / "raw" / "t").mkdir(parents=True)
+    (root / "raw" / "t" / "src.md").write_text(raw)
+    (root / "wiki" / "t").mkdir(parents=True)
+    (root / "wiki" / "t" / article_name).write_text(article)
+    (root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
+    (root / "wiki" / "log.md").write_text("# Wiki Log\n")
+
+
+class SentenceFinalTest(WikiTestCase):
+    def test_sentence_final_values_pass(self):
+        plain_wiki(self.root, "a.md", SENTENCE_FINAL_ARTICLE, raw=SENTENCE_FINAL_RAW)
+        (self.root / "raw" / "t" / "src.md").unlink()
+        (self.root / "raw" / "t" / "numbers.md").write_text(SENTENCE_FINAL_RAW)
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
+
+class StatusBlockTest(WikiTestCase):
+    def test_status_block_explanation_is_not_checked(self):
+        make_wiki(self.root)
+        (self.root / "wiki" / "ai-research" / "statused.md").write_text(STATUS_EXPLANATION_ARTICLE)
+        result = run_checker(self.root)
+        self.assertNotIn("2026-07-18", result.stdout)
+        self.assertNotIn("55K", result.stdout)
+
+
+class FenceVariantsTest(WikiTestCase):
+    def test_tilde_and_long_backtick_fences_are_stripped(self):
+        make_wiki(self.root)
+        (self.root / "wiki" / "ai-research" / "fences.md").write_text(FENCE_VARIANTS_ARTICLE)
+        result = run_checker(self.root)
+        self.assertNotIn("777K", result.stdout)
+        self.assertNotIn("888K", result.stdout)
+
+
+class HeaderScopeTest(WikiTestCase):
+    def test_archived_marker_in_body_does_not_exempt(self):
+        plain_wiki(self.root, "a.md", BODY_ARCHIVED_ARTICLE)
+        result = run_checker(self.root)
+        self.assertIn("no Raw field", result.stdout)
+
+    def test_raw_body_metadata_line_remains_evidence(self):
+        plain_wiki(self.root, "a.md", BODY_METADATA_ARTICLE, raw=RAW_WITH_BODY_METADATA_LINE)
+        result = run_checker(self.root)
+        self.assertNotIn("999K", result.stdout)
+
+
+class RawEscapeTest(WikiTestCase):
+    def test_raw_link_outside_raw_dir_is_an_evidence_error(self):
+        (self.root / "raw").mkdir()
+        (self.root / "notes").mkdir()
+        (self.root / "notes" / "support.md").write_text("The release reached 654K users.\n")
+        (self.root / "wiki" / "t").mkdir(parents=True)
+        (self.root / "wiki" / "t" / "a.md").write_text(ESCAPE_ARTICLE)
+        (self.root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
+        (self.root / "wiki" / "log.md").write_text("# Wiki Log\n")
+        result = run_checker(self.root)
+        self.assertIn("escapes raw/", result.stdout)
+
+
+class NoMaterialParsingTest(WikiTestCase):
+    def test_prose_mention_in_lint_entry_does_not_suppress(self):
+        (self.root / "raw" / "t").mkdir(parents=True)
+        (self.root / "raw" / "t" / "orphan.md").write_text("# Orphan\n")
+        (self.root / "wiki").mkdir()
+        (self.root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
+        (self.root / "wiki" / "log.md").write_text(
+            "# Wiki Log\n\n"
+            "## [2026-01-01] lint | 1 issues found, 0 auto-fixed\n"
+            "- Note: investigate no material: raw/t/orphan.md\n"
+        )
+        result = run_checker(self.root)
+        self.assertIn("raw/t/orphan.md", result.stdout)
+
+
+class DedupTest(WikiTestCase):
+    def test_candidate_reported_once_without_trailing_space(self):
+        make_wiki(self.root)
+        (self.root / "wiki" / "ai-research" / "dedup.md").write_text(DEDUP_ARTICLE)
+        result = run_checker(self.root)
+        self.assertEqual(result.stdout.count("- 88,123"), 1)
+
+
+class ExplicitArgsTest(WikiTestCase):
+    def test_index_and_log_are_skipped_even_when_passed_explicitly(self):
+        make_wiki(self.root)
+        result = run_checker(self.root, "wiki/log.md")
+        self.assertNotIn("no Raw field", result.stdout)
 
 
 class RawInventoryTest(WikiTestCase):
