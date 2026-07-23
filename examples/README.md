@@ -9,7 +9,7 @@ This directory contains real files from a knowledge base maintained with `karpat
 | `claude-code-statusline-landscape.md` | Compiled wiki article with structured data (tables, citations, cross-references) |
 | `2026-03-19-claude-code-statusline-landscape.md` | Raw source material before compilation |
 | `ai-coding-tools-index.md` | Topic index with one-line summaries |
-| `log-sample.md` | Sample entries from operation log |
+| `log-sample.md` | Sample entries from operation log (all current entry types) |
 
 ## Raw vs Compiled Comparison
 
@@ -27,9 +27,8 @@ This directory contains real files from a knowledge base maintained with `karpat
 ## Operation Log
 
 The log records every action:
-- `Compile` — new article from source
-- `Update` — cascade updates across related articles
-- `Lint` — quality checks
-- `Query` — archived query results
+- `ingest` — source collected into raw/ and compiled (with Disposition: New / Update / Disputed, or `no material` when nothing was worth compiling)
+- `query` — archived query results
+- `lint` — quality checks and their outcomes
 
 Recent activity shows daily maintenance: 87 entries in the last 7 days alone.

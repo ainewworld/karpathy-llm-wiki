@@ -105,7 +105,7 @@ This skill follows the [agentskills.io](https://agentskills.io) open standard:
 | Cursor | `npx add-skill Astro-Han/karpathy-llm-wiki` |
 | Codex CLI | Copy to `.agents/skills/karpathy-llm-wiki/` |
 | OpenCode | `npx add-skill Astro-Han/karpathy-llm-wiki` |
-| Other tools | Copy `SKILL.md` and `references/` into the tool's skill directory |
+| Other tools | Copy `SKILL.md`, `references/`, and `scripts/` into the tool's skill directory |
 
 ## FAQ
 
