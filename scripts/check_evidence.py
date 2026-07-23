@@ -15,11 +15,17 @@ Report-only; never modifies files. Three sweeps:
 3. Inventory — raw files that no article's Raw field references,
    excluding files whose ingest was logged as "no material".
 
-Coverage boundary: only specific-enough literals are candidates —
-numbers with a K/M/B/% suffix, a comma, a decimal point, or 4+ digits,
-plus ISO dates and quotes of 15+ characters. Small plain integers
-("42", "500") are deliberately not checked; they are too common in
-prose to keep the report worth reading.
+Coverage boundary (closed candidate set, frozen): candidates are
+- quotes of 15+ characters (double-quoted spans and body blockquotes)
+- ISO dates (YYYY-MM-DD, YYYY-MM)
+- specific numbers: thousands-grouped (10,000), dotted (2.1.80, 3.14),
+  suffixed (42K, 99.9%), or 4+ digits (2026)
+Small plain integers ("42", "500") and exotic forms (signs, currencies,
+spelled-out dates) are deliberately not checked; they belong to the
+compile-time locate-before-write rule and to judgment review. New prose
+forms extend this list in the docstring, not the regexes.
+
+The exit code carries no information; the report is the interface.
 
 Usage: check_evidence.py [project-root] [article.md ...]
 Defaults: project-root is the current directory; all wiki/**/*.md
@@ -31,10 +37,11 @@ import re
 import sys
 from pathlib import Path
 
-NUMBER_TOKEN_RE = re.compile(r"\d[\d,]*(?:\.\d+)?\s*[KMB%]?")
+NUMBER_TOKEN_RE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)*\s*[KMB%]?|\d+(?:\.\d+)*\s*[KMB%]?")
 SUFFIX_RE = re.compile(r"[KMB%]$")
 DATE_RE = re.compile(r"\d{4}-\d{2}(?:-\d{2})?")
-QUOTE_RES = [re.compile(r'"([^"\n]{15,})"'), re.compile(r"“([^”\n]{15,})”")]
+QUOTE_RES = [re.compile(r'"([^"\n]*)"'), re.compile(r"“([^”\n]*)”")]
+SPACED_SUFFIX_RE = re.compile(r"\s+([KMB%])$")
 METADATA_RE = re.compile(r"^>\s*(Sources?|Raw|Collected|Published|Updated|Archived):")
 STATUS_LINE_RE = re.compile(r"^>\s*\*\*Status:")
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
@@ -44,7 +51,7 @@ NO_MATERIAL_HEADING_RE = re.compile(
     r"^## \[[^\]]*\]\s*ingest\s*\|\s*no material:\s*(\S+)", re.IGNORECASE
 )
 ARCHIVED_RE = re.compile(r"^>\s*Archived:")
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 WS_RE = re.compile(r"\s+")
 
 SKIP_FILES = {"index.md", "log.md"}
@@ -106,40 +113,62 @@ def keep_number(token: str) -> bool:
     return len(token) >= 4
 
 
-def extract_candidates(text: str) -> list[str]:
+def extract_candidates(text: str) -> list[tuple[str, bool]]:
+    """Return (candidate, is_quote) pairs. Quote candidates are checked
+    as substrings; everything else uses boundary matching."""
     text = strip_fences(text)
     header, body = split_header(text.splitlines())
-    candidates = []
+    candidates: list[tuple[str, bool]] = []
     skip_status_block = False
+    blockquote: list[str] = []
+
+    def flush_blockquote():
+        if blockquote:
+            joined = normalize(" ".join(blockquote))
+            if len(joined) >= 15:
+                candidates.append((joined, True))
+            blockquote.clear()
+
     for line in [l for l in header if not METADATA_RE.match(l.strip())] + body:
         stripped = line.strip()
         if STATUS_LINE_RE.match(stripped):
+            flush_blockquote()
             skip_status_block = True
             continue
         if skip_status_block:
             if stripped.startswith(">"):
                 continue
             skip_status_block = False
+        if stripped.startswith(">"):
+            blockquote.append(stripped.lstrip(">").strip())
+            continue
+        flush_blockquote()
         line = strip_noise(line)
-        candidates.extend(m.group(0) for m in DATE_RE.finditer(line))
+        candidates.extend((m.group(0), False) for m in DATE_RE.finditer(line))
         candidates.extend(
-            m.group(0) for m in NUMBER_TOKEN_RE.finditer(line) if keep_number(m.group(0))
+            (m.group(0), False) for m in NUMBER_TOKEN_RE.finditer(line) if keep_number(m.group(0))
         )
         for quote_re in QUOTE_RES:
-            candidates.extend(m.group(1) for m in quote_re.finditer(line))
+            candidates.extend(
+                (m.group(1), True) for m in quote_re.finditer(line) if len(m.group(1).strip()) >= 15
+            )
+    flush_blockquote()
     seen = set()
     unique = []
-    for cand in candidates:
-        cand = cand.strip().strip(".,;:()[]")
-        if cand and cand not in seen:
-            seen.add(cand)
-            unique.append(cand)
+    for cand, is_quote in candidates:
+        cand = SPACED_SUFFIX_RE.sub(r"\1", cand.strip().strip(".,;:()[]"))
+        if cand and (cand, is_quote) not in seen:
+            seen.add((cand, is_quote))
+            unique.append((cand, is_quote))
     return unique
 
 
 def raw_links_of(article_text: str) -> list[str]:
+    """Raw links come only from the metadata header; identical lines in
+    the body or in code fences are content, not fields."""
+    header, _ = split_header(strip_fences(article_text).splitlines())
     links = []
-    for line in article_text.splitlines():
+    for line in header:
         if re.match(r"^>\s*Raw:", line.strip()):
             links.extend(RAW_LINK_RE.findall(line))
     return links
@@ -186,9 +215,8 @@ def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
             raws.append(source_content(target))
     misses = []
     if raws:
-        for cand in extract_candidates(text):
+        for cand, is_quote in extract_candidates(text):
             needle = normalize(cand)
-            is_quote = len(cand) >= 15 and not cand[:1].isdigit()
             if not any(contains(raw, needle, is_quote) for raw in raws):
                 misses.append(cand)
     return misses, errors
@@ -196,7 +224,7 @@ def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
 
 def iter_articles(wiki_dir: Path):
     for path in sorted(wiki_dir.rglob("*.md")):
-        if path.name not in SKIP_FILES:
+        if path.relative_to(wiki_dir).as_posix() not in SKIP_FILES:
             yield path
 
 
@@ -207,7 +235,7 @@ def no_material_paths(log_file: Path) -> set[str]:
     for line in log_file.read_text(encoding="utf-8").splitlines():
         m = NO_MATERIAL_HEADING_RE.match(line)
         if m:
-            paths.add(m.group(1).rstrip("`.,;"))
+            paths.add(m.group(1).strip("`,;."))
     return paths
 
 
@@ -245,9 +273,12 @@ def main(argv: list[str]) -> int:
         path = Path(arg)
         if not path.is_absolute():
             path = root / path
-        if path.name in SKIP_FILES:
-            print(f"warning: {arg} is an index/log file, skipping", file=sys.stderr)
-            continue
+        try:
+            if path.resolve().relative_to(wiki_dir).as_posix() in SKIP_FILES:
+                print(f"warning: {arg} is an index/log file, skipping", file=sys.stderr)
+                continue
+        except ValueError:
+            pass
         if not path.is_file():
             print(f"warning: article not found: {arg}", file=sys.stderr)
             continue

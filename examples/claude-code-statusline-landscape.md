@@ -41,13 +41,13 @@ Anthropic marked issue #10593 as "Not Planned" (2026-01-19), rejecting native to
 
 **Context progress bar**: Multiple independent sources consistently call it "install reason". SAP community author: "context bar alone is worth the install".
 
-**Cross-session daily cost summary**: ccusage's core selling point, Japanese user community extensively documents "one command to see amount" experience. Multiple independent reviews list "cost visualization" as primary reason for choosing ccusage.
+**Cross-session daily cost summary**: ccusage's core selling point, Japanese user community extensively documents "one command to see costs" experience. Multiple independent reviews list "cost visualization" as primary reason for choosing ccusage.
 
 **Rate Limit 5h/7d visualization**: After v2.1.80, stdin provides official data, all tools have equal opportunity, differentiation space shifts from "having it" to "being accurate".
 
 ### Pitfalls Already Hit
 
-**ccusage Live Blocks removed**: Real-time token consumption monitoring was officially removed due to accuracy issues (issue #782). Issues #288 (16 reactions) and #483 (11 reactions) document persistent user complaints about "display shows under limit but actually hit limit".
+**ccusage Live Blocks removed**: Real-time token consumption monitoring was officially removed due to accuracy issues (issue #782). Issues #288 (16 reactions) and #483 (11 reactions) document persistent user complaints about "shows not at limit but actually hit".
 
 **ccusage process management bug** (issue #459, 10 reactions): `bun x ccusage statusline` in hooks causes infinite process spawning, CPU 100%. This is structural risk from Node.js runtime.
 

@@ -330,9 +330,9 @@ Nothing here is compiled anywhere.
 """
 
 
-def plain_wiki(root: Path, article_name: str, article: str, raw: str = PLAIN_RAW):
+def plain_wiki(root: Path, article_name: str, article: str, raw: str = PLAIN_RAW, raw_name: str = "src.md"):
     (root / "raw" / "t").mkdir(parents=True)
-    (root / "raw" / "t" / "src.md").write_text(raw)
+    (root / "raw" / "t" / raw_name).write_text(raw)
     (root / "wiki" / "t").mkdir(parents=True)
     (root / "wiki" / "t" / article_name).write_text(article)
     (root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
@@ -419,6 +419,162 @@ class ExplicitArgsTest(WikiTestCase):
         make_wiki(self.root)
         result = run_checker(self.root, "wiki/log.md")
         self.assertNotIn("no Raw field", result.stdout)
+
+
+class TokenizerClosedFormTest(WikiTestCase):
+    def test_version_numbers_match_as_whole(self):
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "After v2.1.80, everything changed.")
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "After v2.1.80, everything changed.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
+    def test_version_number_absent_flagged_as_whole(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "After v2.1.80, everything changed.",
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("- 2.1.80", result.stdout)
+        self.assertNotIn("- 2.1\n", result.stdout)
+
+    def test_prose_commas_do_not_create_candidates(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "There were 42, then 17, and finally 9 items.",
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+
+
+class RawLinksHeaderScopeTest(WikiTestCase):
+    def test_fence_template_raw_line_is_ignored(self):
+        article = (
+            "# A\n\n> Sources: Example, 2026-01-01\n> Raw: [src](../../raw/t/src.md)\n\n"
+            "Value 42K.\n\n```markdown\n> Raw: [template](../../raw/topic/filename.md)\n```\n"
+        )
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "Value 42K confirmed.")
+        plain_wiki(self.root, "a.md", article, raw=raw)
+        result = run_checker(self.root)
+        self.assertNotIn("unresolvable Raw link", result.stdout)
+
+    def test_body_raw_line_does_not_count(self):
+        article = (
+            "# A\n\n> Sources: Example, 2026-01-01\n\n"
+            "Claims 42% growth.\n\n> Raw: [src](../../raw/t/src.md)\n"
+        )
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "42% growth confirmed.")
+        plain_wiki(self.root, "a.md", article, raw=raw)
+        result = run_checker(self.root)
+        self.assertIn("no Raw field", result.stdout)
+
+
+class QuotePairingTest(WikiTestCase):
+    def test_short_quote_pairs_do_not_create_phantom_quote(self):
+        raw = PLAIN_RAW.replace(
+            "No numeric facts here at all.",
+            "Accuracy is high on paper but reliability is low in practice.",
+        )
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            'Accuracy is "high" but reliability is "low".',
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertNotIn("but reliability is", result.stdout)
+
+
+class NestedIndexLogTest(WikiTestCase):
+    def test_article_named_index_in_topic_dir_is_checked(self):
+        article = BODY_METADATA_ARTICLE.replace("999K users", "888K users")
+        plain_wiki(self.root, "index.md", article)
+        result = run_checker(self.root)
+        self.assertIn("888K", result.stdout)
+
+    def test_article_named_log_in_topic_dir_is_checked(self):
+        article = BODY_METADATA_ARTICLE.replace("999K users", "888K users")
+        plain_wiki(self.root, "log.md", article)
+        result = run_checker(self.root)
+        self.assertIn("888K", result.stdout)
+
+
+class BlockquoteQuoteTest(WikiTestCase):
+    def test_fabricated_blockquote_quote_is_flagged(self):
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "As the review put it:\n\n> This fabricated quotation is definitely absent.\n",
+        )
+        plain_wiki(self.root, "a.md", article, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertIn("fabricated quotation", result.stdout)
+
+    def test_verbatim_blockquote_quote_passes(self):
+        article = ARTICLE_CONTENT.replace(
+            "Forks grew to 3,020 last week.",
+            "> the terminal should feel invisible to users\n",
+        )
+        make_wiki(self.root)
+        (self.root / "wiki" / "ai-research" / "ghostty.md").write_text(article)
+        result = run_checker(self.root)
+        self.assertNotIn("invisible to users", result.stdout)
+
+
+class FenceIndentTest(WikiTestCase):
+    def test_four_space_indented_backticks_are_not_a_fence(self):
+        article = (
+            "# A\n\n> Sources: Example, 2026-01-01\n> Raw: [src](../../raw/t/src.md)\n\n"
+            "    ```\n    some indented text\n\nUnsupported claim 777K here.\n"
+        )
+        plain_wiki(self.root, "a.md", article)
+        result = run_checker(self.root)
+        self.assertIn("777K", result.stdout)
+
+
+class BacktickNoMaterialTest(WikiTestCase):
+    def test_backticked_path_still_suppresses(self):
+        log = (
+            "# Wiki Log\n\n"
+            "## [2026-05-01] ingest | no material: `raw/misc/notes.md`\n"
+            "- Disposition: No material\n"
+        )
+        make_wiki(self.root, log=log)
+        result = run_checker(self.root)
+        self.assertNotIn("notes.md", result.stdout)
+
+
+class SpacedSuffixTest(WikiTestCase):
+    def test_spaced_percent_matches_unspaced_raw(self):
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "Uptime hit 99.9% last week.")
+        article = PLAIN_ARTICLE.replace(
+            "There were 42 users; the ratio was 3.14; founded in 2026.",
+            "Uptime hit 99.9 % last week.",
+        )
+        plain_wiki(self.root, "a.md", article, raw=raw, raw_name="plain.md")
+        result = run_checker(self.root)
+        self.assertNotIn("99.9", result.stdout)
+
+
+EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
+
+
+class ExamplesSmokeTest(WikiTestCase):
+    def test_examples_have_zero_suspects(self):
+        raw_src = EXAMPLES_DIR / "2026-03-19-claude-code-statusline-landscape.md"
+        article_src = EXAMPLES_DIR / "claude-code-statusline-landscape.md"
+        (self.root / "raw" / "ai-coding-tools").mkdir(parents=True)
+        (self.root / "raw" / "ai-coding-tools" / raw_src.name).write_text(raw_src.read_text())
+        (self.root / "wiki" / "ai-coding-tools").mkdir(parents=True)
+        (self.root / "wiki" / "ai-coding-tools" / article_src.name).write_text(article_src.read_text())
+        (self.root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
+        (self.root / "wiki" / "log.md").write_text("# Wiki Log\n")
+        result = run_checker(self.root)
+        self.assertIn("0 fidelity suspect(s)", result.stdout)
+        self.assertIn("0 evidence error(s)", result.stdout)
 
 
 class RawInventoryTest(WikiTestCase):

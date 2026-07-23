@@ -168,9 +168,9 @@ Quality checks on the wiki. Three categories with different authority levels.
 Fix these automatically:
 
 **Index consistency** — compare `wiki/index.md` against actual wiki/ files (excluding index.md and log.md):
-- File exists but missing from index → add entry with `(no summary)` placeholder. For Updated, use the article's metadata Updated date if present; otherwise fall back to file's last modified date.
+- File exists but missing from index → add entry with `(no summary)` placeholder. For Updated, use the article's metadata Updated date if present (for archive pages, the Archived date); otherwise fall back to file's last modified date.
 - Index entry points to nonexistent file → mark as `[MISSING]` in the index. Do not delete the entry; let the user decide.
-- Index entry's Updated differs from the article's metadata Updated → update the index entry to match the article.
+- Index entry's Updated differs from the article's metadata Updated (or Archived, for archive pages) → update the index entry to match the article.
 
 **Internal links** — for every markdown link in wiki/ article files (body text and Sources metadata), excluding Raw field links (validated by Raw references below), excluding See Also section links (handled by the See Also rule below), and excluding index.md/log.md (handled above):
 - Target does not exist → search wiki/ for a file with the same name elsewhere.

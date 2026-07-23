@@ -1,8 +1,10 @@
 # Claude Code Statusline Market Scan
 
 > Source: claude-pace project research
-> Collected: 2026-03-19 (market data as of 2026-03-19, GitHub stars verified via gh api)
+> Collected: 2026-03-19 (GitHub stars verified via gh api)
 > Published: Unknown
+
+Market data below is as of 2026-03-19.
 
 ## Competitive Landscape
 
