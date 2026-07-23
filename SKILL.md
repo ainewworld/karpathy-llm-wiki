@@ -38,7 +38,7 @@ If Query or Lint cannot find the wiki structure, tell the user: "Run an ingest f
 
 ## The Grounding Invariant
 
-Every load-bearing fact in wiki/ — numbers, dates, direct quotes — exists verbatim in the raw/ files linked by that article's Raw field. Compile *establishes* this invariant (locate before you write); lint *verifies* it (`scripts/check_evidence.py` greps each fact in the linked raws). Because raw/ is immutable and log.md is append-only, the invariant holds permanently once verified: lint only needs to re-check articles touched since the last lint entry.
+Every load-bearing fact in wiki/ — numbers, dates, direct quotes — exists verbatim in the raw/ files linked by that article's Raw field. Compile *establishes* this invariant (locate before you write); lint *verifies* it (`scripts/check_evidence.py` greps each fact in the linked raws). Because raw/ is immutable, a verified article stays verified; the script re-checks the whole wiki in seconds, so there is no incremental state to maintain.
 
 ---
 
@@ -113,13 +113,13 @@ Append to `wiki/log.md`:
 Omit `- Updated:` lines when no cascade updates occur. For No material, log and stop:
 
 ```
-## [YYYY-MM-DD] ingest | no material: <raw file name>
+## [YYYY-MM-DD] ingest | no material: <raw file path>
 - Disposition: No material
 ```
 
 ### Research (multi-source ingest)
 
-When the input is a question rather than a specific source:
+Use only when the user explicitly asks to research a topic or gather sources into the wiki. Ordinary knowledge questions go to Query, which never writes files.
 
 1. Split the topic into a few angles. For each, search with a wide net — official names, abbreviations, and synonyms, not just the literal keywords.
 2. For any core claim you expect to conclude, deliberately search the opposing side: failures, criticism, failed replications.
@@ -186,13 +186,13 @@ Fix these automatically:
 
 ### Mechanical Reports (no fixes)
 
-Run these mechanically with `scripts/check_evidence.py <wiki-root>` (optionally followed by article paths to limit scope). Report findings; never auto-fix facts.
+Run these mechanically with `python3 <skill-dir>/scripts/check_evidence.py <project-root>` (optionally followed by project-root-relative article paths to limit scope). Default scope is the whole wiki; the script is fast. Report findings; never auto-fix facts.
 
-**Source fidelity** — default scope: articles touched since the last lint entry in log.md; all articles when the user asks for a full sweep. Reported suspects are candidates, not verdicts: derived values and product names may appear. Judge each against the raw context and report only real mismatches.
+**Source fidelity** — reported suspects are candidates, not verdicts: derived values and product names may appear. Judge each against the raw context and report only real mismatches.
+
+**Evidence errors** — articles the script cannot verify (missing Raw field, unresolvable Raw links). These always need a decision, not a fix from the script.
 
 **Unreferenced raw files** — files logged with a No material disposition are excluded; everything else is a genuine backlog reminder.
-
-**Status blocks** — every `> **Status: Outdated**` or `> **Status: Disputed**` block must follow the template form (see `references/article-template.md`); report malformed ones.
 
 ### Judgment Reports (no fixes)
 
@@ -202,6 +202,7 @@ These rely on your judgment. Report findings without auto-fixing:
 - Outdated claims superseded by newer sources but still presented without a Status block
 - Missing conflict annotations where sources disagree
 - Obviously missing cross-references between related articles (suggest them; do not add silently)
+- Malformed Status blocks (missing date or explanation; format reference: `references/article-template.md`)
 - Orphan pages with no inbound links from other wiki articles
 - Missing cross-topic references
 - Concepts frequently mentioned but lacking a dedicated page

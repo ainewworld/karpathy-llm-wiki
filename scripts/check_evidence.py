@@ -40,7 +40,7 @@ LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
 RAW_LINK_RE = re.compile(r"\(([^)]+\.md)[^)]*\)")
-NO_MATERIAL_RE = re.compile(r"no material:\s*(\S+)")
+NO_MATERIAL_RE = re.compile(r"no material:\s*(\S+)", re.IGNORECASE)
 ARCHIVED_RE = re.compile(r"^>\s*Archived:", re.MULTILINE)
 WS_RE = re.compile(r"\s+")
 
@@ -145,15 +145,15 @@ def iter_articles(wiki_dir: Path):
             yield path
 
 
-def no_material_names(log_file: Path) -> set[str]:
+def no_material_paths(log_file: Path) -> set[str]:
     if not log_file.is_file():
         return set()
-    names = set()
+    paths = set()
     for line in log_file.read_text(encoding="utf-8").splitlines():
         m = NO_MATERIAL_RE.search(line)
         if m:
-            names.add(Path(m.group(1).rstrip("`.,;")).name)
-    return names
+            paths.add(m.group(1).rstrip("`.,;"))
+    return paths
 
 
 def referenced_raws(root: Path) -> set[Path]:
@@ -170,10 +170,10 @@ def unreferenced_raws(root: Path) -> list[str]:
     if not raw_dir.is_dir():
         return []
     referenced = referenced_raws(root)
-    disposed = no_material_names(root / "wiki" / "log.md")
+    disposed = no_material_paths(root / "wiki" / "log.md")
     missing = []
     for path in sorted(raw_dir.rglob("*.md")):
-        if path.resolve() not in referenced and path.name not in disposed:
+        if path.resolve() not in referenced and path.relative_to(root).as_posix() not in disposed:
             missing.append(path.relative_to(root).as_posix())
     return missing
 

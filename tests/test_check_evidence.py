@@ -251,12 +251,25 @@ class RawInventoryTest(WikiTestCase):
     def test_no_material_disposition_suppresses_report(self):
         log = (
             "# Wiki Log\n\n"
-            "## [2026-05-01] ingest | no material: notes.md\n"
+            "## [2026-05-01] ingest | no material: raw/misc/notes.md\n"
             "- Disposition: No material\n"
         )
         make_wiki(self.root, log=log)
         result = run_checker(self.root)
         self.assertNotIn("notes.md", result.stdout)
+
+    def test_no_material_does_not_suppress_same_name_elsewhere(self):
+        (self.root / "raw" / "other").mkdir(parents=True)
+        (self.root / "raw" / "other" / "notes.md").write_text(SECOND_RAW)
+        log = (
+            "# Wiki Log\n\n"
+            "## [2026-05-01] ingest | no material: raw/misc/notes.md\n"
+            "- Disposition: No material\n"
+        )
+        make_wiki(self.root, log=log)
+        result = run_checker(self.root)
+        self.assertNotIn("raw/misc/notes.md", result.stdout)
+        self.assertIn("raw/other/notes.md", result.stdout)
 
 
 if __name__ == "__main__":
