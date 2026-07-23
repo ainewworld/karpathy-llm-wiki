@@ -110,12 +110,14 @@ Append to `wiki/log.md`:
 - Updated: <cascade-updated article title>
 ```
 
-Omit `- Updated:` lines when no cascade updates occur. For No material, log and stop:
+Omit `- Updated:` lines when no cascade updates occur. For No material, log and stop. Use a project-root-relative raw path (for example, `raw/topic/file.md`):
 
 ```
-## [YYYY-MM-DD] ingest | no material: <raw file path>
+## [YYYY-MM-DD] ingest | no material: <project-root-relative raw file path>
 - Disposition: No material
 ```
+
+The exact no-material heading is the machine-readable inventory key; the Disposition line remains required for a complete human-readable log entry.
 
 ### Research (multi-source ingest)
 
@@ -194,7 +196,7 @@ Run these mechanically with `python3 <skill-dir>/scripts/check_evidence.py <proj
 
 **Source fidelity** — reported suspects are candidates, not verdicts: derived values and product names may appear. Judge each against the raw context and report only real mismatches.
 
-**Evidence errors** — articles the script cannot verify (missing Raw field, unresolvable Raw links). These always need a decision, not a fix from the script.
+**Evidence errors** — articles the script cannot verify (missing Raw field, unresolvable Raw links, or Raw links escaping `raw/`). These always need a decision, not a fix from the script.
 
 **Unreferenced raw files** — files logged with a No material disposition are excluded; everything else is a genuine backlog reminder.
 

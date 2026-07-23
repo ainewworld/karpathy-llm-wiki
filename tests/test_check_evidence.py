@@ -417,6 +417,19 @@ class RawEscapeTest(WikiTestCase):
 
 
 class NoMaterialParsingTest(WikiTestCase):
+    def test_heading_inside_fence_does_not_suppress(self):
+        (self.root / "raw" / "t").mkdir(parents=True)
+        (self.root / "raw" / "t" / "orphan.md").write_text("# Orphan\n")
+        (self.root / "wiki").mkdir()
+        (self.root / "wiki" / "index.md").write_text("# Knowledge Base Index\n")
+        (self.root / "wiki" / "log.md").write_text(
+            "# Wiki Log\n\n```markdown\n"
+            "## [2026-01-01] ingest | no material: raw/t/orphan.md\n"
+            "- Disposition: No material\n```\n"
+        )
+        result = run_checker(self.root)
+        self.assertIn("raw/t/orphan.md", result.stdout)
+
     def test_prose_mention_in_lint_entry_does_not_suppress(self):
         (self.root / "raw" / "t").mkdir(parents=True)
         (self.root / "raw" / "t" / "orphan.md").write_text("# Orphan\n")

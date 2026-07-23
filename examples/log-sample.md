@@ -7,10 +7,10 @@
 - Raw: raw/content-strategy/2026-04-12-x-buildinpublic-thread.md
 - Core finding: altruistic content earns distribution, self-narrative does not
 
-## [2026-04-15] ingest | AI coding tools landscape 2026 Q1
-- Disposition: Update; Disputed
+## [2026-04-15] ingest | AI coding benchmark methodology
+- Disposition: Disputed
 - Raw: raw/ai-coding-tools/2026-04-15-vendor-benchmark-post.md
-- Updated: Claude Code statusline landscape (vendor's throughput claim contradicted the earlier community measurement; marked Status: Disputed)
+- Updated: Vendor benchmark reliability (vendor's throughput claim contradicted the earlier community measurement; marked Status: Disputed)
 
 ## [2026-04-18] ingest | no material: raw/ai-coding-tools/2026-04-18-weekly-trending-recap.md
 - Disposition: No material

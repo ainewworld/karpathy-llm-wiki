@@ -325,7 +325,8 @@ def no_material_paths(log_file: Path) -> set[str]:
     if not log_file.is_file():
         return set()
     paths = set()
-    for line in log_file.read_text(encoding="utf-8").splitlines():
+    text = strip_fences(log_file.read_text(encoding="utf-8"))
+    for line in text.splitlines():
         m = NO_MATERIAL_HEADING_RE.match(line)
         if m:
             paths.add(m.group(1).strip("`,;."))
