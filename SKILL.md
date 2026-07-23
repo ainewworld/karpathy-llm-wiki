@@ -117,6 +117,14 @@ Omit `- Updated:` lines when no cascade updates occur. For No material, log and 
 - Disposition: No material
 ```
 
+### Research (multi-source ingest)
+
+When the input is a question rather than a specific source:
+
+1. Split the topic into a few angles. For each, search with a wide net — official names, abbreviations, and synonyms, not just the literal keywords.
+2. For any core claim you expect to conclude, deliberately search the opposing side: failures, criticism, failed replications.
+3. Save selected sources to raw/ as usual. Searching may run in parallel; compilation must not — compile one source at a time, because index.md, log.md, and cascade updates are shared state.
+
 ---
 
 ## Query
@@ -128,8 +136,8 @@ Search the wiki and answer questions. Examples of triggers:
 
 ### Steps
 
-1. Read `wiki/index.md` to locate relevant articles.
-2. Read those articles and synthesize an answer.
+1. Read `wiki/index.md` to locate candidate articles, then full-text search wiki/ with the topic's key terms *and their synonyms*. Never claim the wiki has no relevant content until both the index and the full-text search come back empty — and say that you searched.
+2. Read the articles you found and synthesize an answer.
 3. Prefer wiki content over your own training knowledge. Cite sources with markdown links: `[Article Title](wiki/topic/article.md)` (project-root-relative paths for in-conversation citations; within wiki/ files, use paths relative to the current file).
 4. Output the answer in the conversation. Do not write files unless asked.
 
