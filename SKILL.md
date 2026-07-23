@@ -36,6 +36,10 @@ Triggers only on the first Ingest. Check whether `raw/` and `wiki/` exist. Creat
 
 If Query or Lint cannot find the wiki structure, tell the user: "Run an ingest first to initialize the wiki." Do not auto-create.
 
+## The Grounding Invariant
+
+Every load-bearing fact in wiki/ — numbers, dates, direct quotes — exists verbatim in the raw/ files linked by that article's Raw field. Compile *establishes* this invariant (locate before you write); lint *verifies* it (`scripts/check_evidence.py` greps each fact in the linked raws). Because raw/ is immutable and log.md is append-only, the invariant holds permanently once verified: lint only needs to re-check articles touched since the last lint entry.
+
 ---
 
 ## Ingest
@@ -77,6 +81,8 @@ Determine where the new content belongs:
 - **Spans multiple topics** → Place in the most relevant directory. Add See Also cross-references to related articles elsewhere.
 
 These are not mutually exclusive. A single source may warrant merging into one article while also creating a separate article for a distinct concept it introduces. In all cases, check for factual conflicts: if the new source contradicts existing content, annotate the disagreement with source attribution. When merging, note the conflict within the merged article. When the conflicting content lives in separate articles, note it in both and cross-link them.
+
+**Source fidelity.** Every number, date, and direct quote must be located in the raw file (grep or read) *before* it is written; write the value exactly as found — if the source says 42K, write 42K, not 42,000. Derived values (sums, deltas, counts you computed) must show their components so each component is findable in raw. If you cannot locate a value, do not write its exact form; drop it or state it without precision.
 
 See `references/article-template.md` for article format. Key points:
 - Sources field: author, organization, or publication name + date, semicolon-separated.
@@ -149,9 +155,9 @@ When the user explicitly asks to archive or save the answer to the wiki:
 
 ## Lint
 
-Quality checks on the wiki. Two categories with different authority levels.
+Quality checks on the wiki. Three categories with different authority levels.
 
-### Deterministic Checks (auto-fix)
+### Safe Fixes (auto-fix)
 
 Fix these automatically:
 
@@ -170,16 +176,24 @@ Fix these automatically:
   - Zero or multiple matches → report to the user.
 
 **See Also** — within each topic directory:
-- Add obviously missing cross-references between related articles.
 - Remove links to deleted files.
 
-### Heuristic Checks (report only)
+### Mechanical Reports (no fixes)
+
+Run these mechanically with `scripts/check_evidence.py <wiki-root>` (optionally followed by article paths to limit scope). Report findings; never auto-fix facts.
+
+**Source fidelity** — default scope: articles touched since the last lint entry in log.md; all articles when the user asks for a full sweep. Reported suspects are candidates, not verdicts: derived values and product names may appear. Judge each against the raw context and report only real mismatches.
+
+**Unreferenced raw files** — files logged with a No material disposition are excluded; everything else is a genuine backlog reminder.
+
+### Judgment Reports (no fixes)
 
 These rely on your judgment. Report findings without auto-fixing:
 
 - Factual contradictions across articles
 - Outdated claims superseded by newer sources
 - Missing conflict annotations where sources disagree
+- Obviously missing cross-references between related articles (suggest them; do not add silently)
 - Orphan pages with no inbound links from other wiki articles
 - Missing cross-topic references
 - Concepts frequently mentioned but lacking a dedicated page
