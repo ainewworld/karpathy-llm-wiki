@@ -4,12 +4,12 @@ Usage strategies, context management, multi-agent orchestration, and human-AI in
 
 ## Articles
 
-| Article | Summary |
-|---------|---------|
-| [Claude Max Quota Mechanism](claude-max-quota-mechanism.md) | Dual quota mechanism (5h window + 7d weekly limit) deduction logic and optimization directions |
-| [AI as GitHub Co-author Status](ai-coauthor-github.md) | Co-authored-by community controversy, legal implications, and tiered strategy recommendations |
-| [Skill Language Choice and Distribution](skill-language-distribution.md) | Why SKILL.md must be English for skill distribution - ecosystem and technical reasons |
-| [LLM Working Language Strategy](llm-working-language-strategy.md) | Bilingual developer's language choice: English for system content, Chinese for conversation - practical bilingual strategy, token savings overstated, agentic stability is the real reason |
+| Article | Summary | Updated |
+|---------|---------|---------|
+| [Claude Max Quota Mechanism](claude-max-quota-mechanism.md) | Dual quota mechanism (5h window + 7d weekly limit) deduction logic and optimization directions | 2026-04-02 |
+| [AI as GitHub Co-author Status](ai-coauthor-github.md) | Co-authored-by community controversy, legal implications, and tiered strategy recommendations | 2026-03-28 |
+| [Skill Language Choice and Distribution](skill-language-distribution.md) | Why SKILL.md must be English for skill distribution - ecosystem and technical reasons | 2026-04-05 |
+| [LLM Working Language Strategy](llm-working-language-strategy.md) | Bilingual developer's language choice: English for system content, Chinese for conversation - practical bilingual strategy, token savings overstated, agentic stability is the real reason | 2026-03-30 |
 | [Code Explanation for Non-Programmers](code-explanation-for-non-programmers.md) | Four-layer progressive explanation framework and CLAUDE.md task briefing rules |
 | [Compact Instructions Best Practices](compact-instructions-best-practices.md) | auto-compact mechanism's lost content and information retention priority template |
 | [Multi-Agent Orchestration Landscape](multi-agent-orchestration-landscape.md) | Five orchestration paradigms comparison, real user behavior patterns (role division not simultaneous coding),赛道新约束, 2026-04-11 IDE paradigm explosion (Paseo/super.engineering/Conductor/Emdash) and僵尸识别 (Vibe Kanban/Plandex) |

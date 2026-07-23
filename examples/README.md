@@ -8,7 +8,7 @@ This directory contains real files from a knowledge base maintained with `karpat
 |------|---------------|
 | `claude-code-statusline-landscape.md` | Compiled wiki article with structured data (tables, citations, cross-references) |
 | `2026-03-19-claude-code-statusline-landscape.md` | Raw source material before compilation |
-| `ai-coding-tools-index.md` | Topic index with one-line summaries |
+| `ai-coding-tools-index.md` | One topic section of the global index (summary + Updated per article) |
 | `log-sample.md` | Sample entries from operation log (all current entry types) |
 
 ## Raw vs Compiled Comparison

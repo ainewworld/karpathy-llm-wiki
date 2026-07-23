@@ -38,7 +38,7 @@ If Query or Lint cannot find the wiki structure, tell the user: "Run an ingest f
 
 ## The Grounding Invariant
 
-Every load-bearing fact in wiki/ — numbers, dates, direct quotes — exists verbatim in the raw/ files linked by that article's Raw field. Compile *establishes* this invariant (locate before you write); lint *verifies* it (`scripts/check_evidence.py` greps each fact in the linked raws). Because raw/ is immutable, a verified article stays verified; the script re-checks the whole wiki in seconds, so there is no incremental state to maintain.
+Every load-bearing fact in wiki/ — numbers, dates, direct quotes — exists verbatim in the raw/ files linked by that article's Raw field. Compile *establishes* this invariant (locate before you write); lint *verifies* it (`scripts/check_evidence.py` greps the high-signal literals — suffixed or large numbers, decimals, ISO dates, longer quotes — in the linked raws; the compile-time locate-before-write rule covers the rest). Because raw/ is immutable, a verified article stays verified; the script re-checks the whole wiki in seconds, so there is no incremental state to maintain.
 
 ---
 
@@ -170,8 +170,9 @@ Fix these automatically:
 **Index consistency** — compare `wiki/index.md` against actual wiki/ files (excluding index.md and log.md):
 - File exists but missing from index → add entry with `(no summary)` placeholder. For Updated, use the article's metadata Updated date if present; otherwise fall back to file's last modified date.
 - Index entry points to nonexistent file → mark as `[MISSING]` in the index. Do not delete the entry; let the user decide.
+- Index entry's Updated differs from the article's metadata Updated → update the index entry to match the article.
 
-**Internal links** — for every markdown link in wiki/ article files (body text and Sources metadata), excluding Raw field links (validated by Raw references below) and excluding index.md/log.md (handled above):
+**Internal links** — for every markdown link in wiki/ article files (body text and Sources metadata), excluding Raw field links (validated by Raw references below), excluding See Also section links (handled by the See Also rule below), and excluding index.md/log.md (handled above):
 - Target does not exist → search wiki/ for a file with the same name elsewhere.
   - Exactly one match → fix the path.
   - Zero or multiple matches → report to the user.
@@ -182,7 +183,10 @@ Fix these automatically:
   - Zero or multiple matches → report to the user.
 
 **See Also** — within each topic directory:
-- Remove links to deleted files.
+- Target of a See Also link does not exist → search wiki/ for a file with the same name elsewhere.
+  - Exactly one match → fix the path.
+  - Zero matches → remove the link (a dead cross-reference is not load-bearing).
+  - Multiple matches → report to the user.
 
 ### Mechanical Reports (no fixes)
 
@@ -202,7 +206,7 @@ These rely on your judgment. Report findings without auto-fixing:
 - Outdated claims superseded by newer sources but still presented without a Status block
 - Missing conflict annotations where sources disagree
 - Obviously missing cross-references between related articles (suggest them; do not add silently)
-- Malformed Status blocks (missing date or explanation; format reference: `references/article-template.md`)
+- Malformed Status blocks (Outdated missing its date, or either block missing its explanation; format reference: `references/article-template.md`)
 - Orphan pages with no inbound links from other wiki articles
 - Missing cross-topic references
 - Concepts frequently mentioned but lacking a dedicated page

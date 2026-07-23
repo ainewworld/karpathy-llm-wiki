@@ -2,6 +2,7 @@
 
 > Source: claude-pace project research
 > Collected: 2026-03-19 (market data as of 2026-03-19, GitHub stars verified via gh api)
+> Published: Unknown
 
 ## Competitive Landscape
 
