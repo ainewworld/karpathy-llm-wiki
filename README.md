@@ -22,7 +22,7 @@ This skill gives you three operations:
 
 | Operation | What it does | Output |
 |-----------|--------------|--------|
-| **Ingest** | Collects a source into `raw/` and compiles it into the wiki | New or updated wiki pages |
+| **Ingest** | Collects a source into `raw/`, triages it, then creates or updates wiki articles — or just logs it when nothing is new | New or updated wiki pages |
 | **Query** | Searches the wiki and answers with citations | Grounded answers linking to markdown pages |
 | **Lint** | Checks index integrity, links, and wiki health | Auto-fixes plus reported issues |
 

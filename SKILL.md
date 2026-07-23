@@ -40,7 +40,7 @@ If Query or Lint cannot find the wiki structure, tell the user: "Run an ingest f
 
 ## Ingest
 
-Fetch a source into raw/, then compile it into wiki/. Always both steps, no exceptions.
+Fetch a source into raw/, then compile it into wiki/ — unless the source adds nothing new. Always fetch; whether to compile depends on the triage below.
 
 ### Fetch (raw/)
 
@@ -56,6 +56,17 @@ Fetch a source into raw/, then compile it into wiki/. Always both steps, no exce
    - Preserve original text. Clean formatting noise. Do not rewrite opinions.
 
    See `references/raw-template.md` for the exact format.
+
+### Triage
+
+After saving the raw file and before editing wiki/, search wiki/ with the source's key entities and synonyms, then state the disposition:
+
+- **New** — creates one or more new articles.
+- **Update** — merges into existing article(s).
+- **Disputed** — contradicts existing content; may combine with New or Update (see Compile for conflict annotation).
+- **No material** — adds no knowledge beyond what the wiki already holds. Keep the raw file, log it (see Post-Ingest), and stop. Do not force an article out of a thin source.
+
+New, Update, and Disputed may be combined. No material is exclusive.
 
 ### Compile (wiki/)
 
@@ -90,11 +101,17 @@ Append to `wiki/log.md`:
 
 ```
 ## [YYYY-MM-DD] ingest | <primary article title>
+- Disposition: <New; Update; Disputed>
+- Raw: <raw file path>
 - Updated: <cascade-updated article title>
-- Updated: <another cascade-updated article title>
 ```
 
-Omit `- Updated:` lines when no cascade updates occur.
+Omit `- Updated:` lines when no cascade updates occur. For No material, log and stop:
+
+```
+## [YYYY-MM-DD] ingest | no material: <raw file name>
+- Disposition: No material
+```
 
 ---
 
@@ -184,4 +201,4 @@ Append to `wiki/log.md`:
 - wiki/ supports one level of topic subdirectories only. No deeper nesting.
 - Today's date for log entries, Collected dates, and Archived dates. Updated dates reflect when the article's knowledge content last changed. Published dates come from the source (use `Unknown` when unavailable).
 - Inside wiki/ files, all markdown links use paths relative to the current file. In conversation output, use project-root-relative paths (e.g., `wiki/topic/article.md`).
-- Ingest updates both `wiki/index.md` and `wiki/log.md`. Archive (from Query) updates both. Lint updates `wiki/log.md` (and `wiki/index.md` only when auto-fixing index entries). Plain queries do not write any files.
+- Ingest updates both `wiki/index.md` and `wiki/log.md` (a No material ingest updates only the log). Archive (from Query) updates both. Lint updates `wiki/log.md` (and `wiki/index.md` only when auto-fixing index entries). Plain queries do not write any files.
