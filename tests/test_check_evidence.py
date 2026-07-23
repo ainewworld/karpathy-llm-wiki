@@ -474,6 +474,58 @@ class RawLinksHeaderScopeTest(WikiTestCase):
         self.assertIn("no Raw field", result.stdout)
 
 
+class DocumentStructureTest(WikiTestCase):
+    def test_fence_between_h1_and_body_raw_does_not_create_header(self):
+        article = (
+            "# A\n\n```text\nthis is body content\n```\n\n"
+            "> Raw: [src](../../raw/t/src.md)\n\nValue 42K.\n"
+        )
+        raw = PLAIN_RAW.replace("No numeric facts here at all.", "Value 42K.")
+        plain_wiki(self.root, "a.md", article, raw=raw)
+        result = run_checker(self.root)
+        self.assertIn("article has no Raw field", result.stdout)
+
+    def test_archived_marker_in_fence_before_real_h1_does_not_exempt(self):
+        article = (
+            "```markdown\n# Fake\n> Archived: 2026-01-01\n```\n\n"
+            "# Real article\n\n> Sources: Example, 2026-01-01\n\nValue 777K.\n"
+        )
+        plain_wiki(self.root, "a.md", article)
+        result = run_checker(self.root)
+        self.assertIn("article has no Raw field", result.stdout)
+
+    def test_title_candidates_are_checked(self):
+        article = (
+            "# GPT 9.7 Migration Notes\n\n"
+            "> Sources: Example, 2026-01-01\n"
+            "> Raw: [src](../../raw/t/src.md)\n\nNo other claim.\n"
+        )
+        plain_wiki(self.root, "a.md", article)
+        result = run_checker(self.root)
+        self.assertIn("- 9.7", result.stdout)
+
+    def test_fence_closer_with_trailing_text_does_not_close(self):
+        article = (
+            "# A\n\n> Sources: Example, 2026-01-01\n"
+            "> Raw: [src](../../raw/t/src.md)\n\n"
+            "```text\ninside 777K\n``` trailing text\nstill inside 888K\n```\n"
+        )
+        plain_wiki(self.root, "a.md", article)
+        result = run_checker(self.root)
+        self.assertNotIn("777K", result.stdout)
+        self.assertNotIn("888K", result.stdout)
+
+    def test_backtick_in_info_string_does_not_open_fence(self):
+        article = (
+            "# A\n\n> Sources: Example, 2026-01-01\n"
+            "> Raw: [src](../../raw/t/src.md)\n\n"
+            "```lang`bad\nUnsupported 666K claim.\n```\n"
+        )
+        plain_wiki(self.root, "a.md", article)
+        result = run_checker(self.root)
+        self.assertIn("- 666K", result.stdout)
+
+
 class QuotePairingTest(WikiTestCase):
     def test_short_quote_pairs_do_not_create_phantom_quote(self):
         raw = PLAIN_RAW.replace(

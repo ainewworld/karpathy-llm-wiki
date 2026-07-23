@@ -35,6 +35,7 @@ absolute or relative to the project root.
 
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 NUMBER_TOKEN_RE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)*\s*[KMB%]?|\d+(?:\.\d+)*\s*[KMB%]?")
@@ -51,50 +52,105 @@ NO_MATERIAL_HEADING_RE = re.compile(
     r"^## \[[^\]]*\]\s*ingest\s*\|\s*no material:\s*(\S+)", re.IGNORECASE
 )
 ARCHIVED_RE = re.compile(r"^>\s*Archived:")
-FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 WS_RE = re.compile(r"\s+")
 
 SKIP_FILES = {"index.md", "log.md"}
+
+
+@dataclass(frozen=True)
+class Document:
+    title: str | None
+    header: tuple[str, ...]
+    body: tuple[str, ...]
 
 
 def normalize(text: str) -> str:
     return WS_RE.sub(" ", text).strip()
 
 
-def split_header(lines: list[str]) -> tuple[list[str], list[str]]:
-    """Split lines into the metadata header (the contiguous blockquote
-    block right after the H1) and everything else. Only the header may
-    carry metadata semantics; identical lines in the body are content."""
-    i = 0
-    while i < len(lines) and not lines[i].startswith("# "):
-        i += 1
-    if i >= len(lines):
-        return [], lines
-    i += 1
-    while i < len(lines) and not lines[i].strip():
-        i += 1
+def fence_opener(line: str) -> tuple[str, int] | None:
+    m = FENCE_OPEN_RE.match(line)
+    if not m:
+        return None
+    marker, info = m.groups()
+    if marker[0] == "`" and "`" in info:
+        return None
+    return marker[0], len(marker)
+
+
+def is_fence_closer(line: str, char: str, length: int) -> bool:
+    m = FENCE_CLOSE_RE.match(line)
+    return bool(m and m.group(1)[0] == char and len(m.group(1)) >= length)
+
+
+def parse_document(text: str) -> Document:
+    """Return the visible title, metadata header, and body.
+
+    The metadata header is only the contiguous blockquote immediately
+    after the first H1 outside a fence. A fence is a body boundary; its
+    removal must not promote a later blockquote into the header.
+    """
+    title = None
     header = []
-    while i < len(lines) and lines[i].strip().startswith(">"):
-        header.append(lines[i])
-        i += 1
-    return header, lines[i:]
+    preamble = []
+    body = []
+    state = "before_title"
+    fence_char = None
+    fence_len = 0
+
+    for line in text.splitlines():
+        if fence_char:
+            if is_fence_closer(line, fence_char, fence_len):
+                fence_char = None
+            continue
+        opener = fence_opener(line)
+        if opener:
+            fence_char, fence_len = opener
+            if state == "after_title":
+                state = "body"
+            continue
+        if state == "before_title":
+            if line.startswith("# "):
+                title = line
+                state = "after_title"
+            else:
+                preamble.append(line)
+        elif state == "after_title":
+            if not line.strip():
+                continue
+            if line.strip().startswith(">"):
+                header.append(line)
+                state = "header"
+            else:
+                body.append(line)
+                state = "body"
+        elif state == "header":
+            if line.strip().startswith(">"):
+                header.append(line)
+            else:
+                body.append(line)
+                state = "body"
+        else:
+            body.append(line)
+
+    return Document(title, tuple(header), tuple(preamble + body))
 
 
 def strip_fences(text: str) -> str:
-    """Remove fenced code blocks (3+ backticks or tildes, closed by a
-    fence of the same character and at least the same length)."""
+    """Remove Standard Markdown fenced code blocks."""
     out = []
     fence_char = None
     fence_len = 0
     for line in text.splitlines():
-        m = FENCE_RE.match(line)
         if fence_char:
-            if m and m.group(1)[0] == fence_char and len(m.group(1)) >= fence_len:
+            if is_fence_closer(line, fence_char, fence_len):
                 fence_char = None
             continue
-        if m:
-            fence_char = m.group(1)[0]
-            fence_len = len(m.group(1))
+        opener = fence_opener(line)
+        if opener:
+            fence_char, fence_len = opener
             continue
         out.append(line)
     return "\n".join(out)
@@ -116,8 +172,10 @@ def keep_number(token: str) -> bool:
 def extract_candidates(text: str) -> list[tuple[str, bool]]:
     """Return (candidate, is_quote) pairs. Quote candidates are checked
     as substrings; everything else uses boundary matching."""
-    text = strip_fences(text)
-    header, body = split_header(text.splitlines())
+    document = parse_document(text)
+    lines = ([document.title] if document.title else []) + [
+        line for line in document.header if not METADATA_RE.match(line.strip())
+    ] + list(document.body)
     candidates: list[tuple[str, bool]] = []
     skip_status_block = False
     blockquote: list[str] = []
@@ -129,7 +187,7 @@ def extract_candidates(text: str) -> list[tuple[str, bool]]:
                 candidates.append((joined, True))
             blockquote.clear()
 
-    for line in [l for l in header if not METADATA_RE.match(l.strip())] + body:
+    for line in lines:
         stripped = line.strip()
         if STATUS_LINE_RE.match(stripped):
             flush_blockquote()
@@ -166,9 +224,8 @@ def extract_candidates(text: str) -> list[tuple[str, bool]]:
 def raw_links_of(article_text: str) -> list[str]:
     """Raw links come only from the metadata header; identical lines in
     the body or in code fences are content, not fields."""
-    header, _ = split_header(strip_fences(article_text).splitlines())
     links = []
-    for line in header:
+    for line in parse_document(article_text).header:
         if re.match(r"^>\s*Raw:", line.strip()):
             links.extend(RAW_LINK_RE.findall(line))
     return links
@@ -188,9 +245,8 @@ def source_content(path: Path) -> str:
     """Raw file body with the metadata header removed. Collection
     metadata (Source/Collected/Published) is bookkeeping, not evidence;
     letting it match candidates would false-pass dates and years."""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    _, body = split_header(lines)
-    return normalize("\n".join(body))
+    document = parse_document(path.read_text(encoding="utf-8"))
+    return normalize("\n".join(document.body))
 
 
 def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
@@ -198,8 +254,7 @@ def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
     text = article.read_text(encoding="utf-8")
     links = raw_links_of(text)
     if not links:
-        header, _ = split_header(text.splitlines())
-        if any(ARCHIVED_RE.match(line.strip()) for line in header):
+        if any(ARCHIVED_RE.match(line.strip()) for line in parse_document(text).header):
             return [], []
         return [], ["article has no Raw field"]
     raw_root = (root / "raw").resolve()
