@@ -11,6 +11,14 @@
 
 {Synthesize a coherent structure from the source material. Do not copy source text verbatim; distill and reorganize. Use blockquotes sparingly for particularly important original phrasing.}
 
+{OPTIONAL status blocks — place directly beneath a claim that turns out to be outdated or disputed, so readers and lint can tell it no longer stands as written:}
+
+> **Status: Outdated** (YYYY-MM-DD)
+> {What changed and what the current understanding is, with source attribution.}
+
+> **Status: Disputed**
+> {The competing claims, each with source attribution.}
+
 {OPTIONAL — include this section only when cross-references exist:}
 
 ## See Also

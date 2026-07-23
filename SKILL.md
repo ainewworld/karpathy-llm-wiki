@@ -80,7 +80,7 @@ Determine where the new content belongs:
 - **New concept** → Create a new article in the most relevant topic directory. Name the file after the concept, not the raw file.
 - **Spans multiple topics** → Place in the most relevant directory. Add See Also cross-references to related articles elsewhere.
 
-These are not mutually exclusive. A single source may warrant merging into one article while also creating a separate article for a distinct concept it introduces. In all cases, check for factual conflicts: if the new source contradicts existing content, annotate the disagreement with source attribution. When merging, note the conflict within the merged article. When the conflicting content lives in separate articles, note it in both and cross-link them.
+These are not mutually exclusive. A single source may warrant merging into one article while also creating a separate article for a distinct concept it introduces. In all cases, check for factual conflicts: if the new source contradicts existing content, mark the contested claims with a **Status: Disputed** block (see `references/article-template.md`). When the conflicting content lives in separate articles, mark both and cross-link them.
 
 **Source fidelity.** Every number, date, and direct quote must be located in the raw file (grep or read) *before* it is written; write the value exactly as found — if the source says 42K, write 42K, not 42,000. Derived values (sums, deltas, counts you computed) must show their components so each component is findable in raw. If you cannot locate a value, do not write its exact form; drop it or state it without precision.
 
@@ -91,11 +91,9 @@ See `references/article-template.md` for article format. Key points:
 
 ### Cascade Updates
 
-After the primary article, check for ripple effects:
+After the primary article, check for ripple effects. Do not rely on the index alone: search the full wiki for the source's key entities, aliases, and the claims it touches, then update every non-archive article whose content is materially affected. Each updated file gets its Updated date refreshed.
 
-1. Scan articles in the same topic directory for content affected by the new source.
-2. Scan `wiki/index.md` entries in other topics for articles covering related concepts.
-3. Update every article whose content is materially affected. Each updated file gets its Updated date refreshed.
+When the new source supersedes or contradicts an existing claim, keep the old claim for the record but mark it with a Status block (see `references/article-template.md`): **Outdated** when something newer replaces it, **Disputed** when sources disagree. Never silently rewrite history.
 
 Archive pages are never cascade-updated (they are point-in-time snapshots).
 
@@ -186,12 +184,14 @@ Run these mechanically with `scripts/check_evidence.py <wiki-root>` (optionally 
 
 **Unreferenced raw files** — files logged with a No material disposition are excluded; everything else is a genuine backlog reminder.
 
+**Status blocks** — every `> **Status: Outdated**` or `> **Status: Disputed**` block must follow the template form (see `references/article-template.md`); report malformed ones.
+
 ### Judgment Reports (no fixes)
 
 These rely on your judgment. Report findings without auto-fixing:
 
 - Factual contradictions across articles
-- Outdated claims superseded by newer sources
+- Outdated claims superseded by newer sources but still presented without a Status block
 - Missing conflict annotations where sources disagree
 - Obviously missing cross-references between related articles (suggest them; do not add silently)
 - Orphan pages with no inbound links from other wiki articles
